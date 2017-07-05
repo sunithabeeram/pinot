@@ -128,7 +128,7 @@ public class BrokerRequestHandler {
     _splitInClause = config.getBoolean(BROKER_QUERY_SPLIT_IN_CLAUSE, DEFAULT_BROKER_QUERY_SPLIT_IN_CLAUSE);
     _queryLogLength = config.getInt(BROKER_QUERY_LOG_LENGTH, DEFAULT_QUERY_LOG_LENGTH);
     _brokerTimeOutMs = config.getLong(BROKER_TIME_OUT_CONFIG, DEFAULT_BROKER_TIME_OUT_MS);
-    _brokerId = config.getString(BROKER_ID_CONFIG_KEY, DEFAULT_BROKER_ID);
+    _brokerId = config.getString(BROKER_ID_CONFIG_KEY, getDefaultBrokerId());
     _segmentPrunerService = segmentPrunerService;
 
     LOGGER.info("Broker response limit is: " + _queryResponseLimit);
@@ -640,6 +640,18 @@ public class BrokerRequestHandler {
       }
     }
   }
+
+  public String getDefaultBrokerId() {
+    String defaultBrokerId = "";
+    try {
+      defaultBrokerId = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      LOGGER.error("Failed to read default broker id.", e);
+    }
+    return defaultBrokerId;
+  }
+
+
 
   /**
    * Container for time statistics in all phases.

@@ -93,6 +93,7 @@ public class StarTreeIndexViewer {
     String writeValueAsString =
         objectMapper.defaultPrettyPrintingWriter().writeValueAsString(jsonRoot);
     LOGGER.info(writeValueAsString);
+    int records = countRawRecords(tree.getRoot(), true);
     startServer(segmentDir, writeValueAsString);
   }
 
@@ -153,6 +154,28 @@ public class StarTreeIndexViewer {
       }
     }
     return totalChildNodes;
+  }
+
+  private int countRawRecords(StarTreeIndexNodeInterf node, boolean isAllNodePath) {
+    Iterator<? extends StarTreeIndexNodeInterf> childrenIterator = node.getChildrenIterator();
+    int rawRecordCount = 0;
+
+    while (childrenIterator.hasNext()) {
+      StarTreeIndexNodeInterf next = childrenIterator.next();
+      if (next.isLeaf()) {
+        if(next.getDimensionValue() != StarTreeIndexNodeInterf.ALL){
+          rawRecordCount += (next.getEndDocumentId() - node.getStartDocumentId());;
+        }
+      } else {
+         rawRecordCount += countRawRecords(next,
+            isAllNodePath && next.getDimensionValue() == StarTreeIndexNodeInterf.ALL);
+
+      }
+    }
+    if(isAllNodePath) {
+      LOGGER.info("Num Records at {}:{} is {}", dimensionNameToIndexMap.inverse().get(node.getDimensionName()), node.getDimensionValue() , rawRecordCount);
+    }
+    return rawRecordCount;
   }
 
   public static void main(String[] args) throws Exception {

@@ -28,6 +28,7 @@ import com.linkedin.pinot.common.metrics.BrokerMetrics;
 import com.linkedin.pinot.common.metrics.MetricsHelper;
 import com.linkedin.pinot.common.query.ReduceServiceRegistry;
 import com.linkedin.pinot.common.response.BrokerResponseFactory;
+import com.linkedin.pinot.common.utils.CommonConstants;
 import com.linkedin.pinot.core.query.reduce.BrokerReduceService;
 import com.linkedin.pinot.transport.conf.TransportClientConf;
 import com.linkedin.pinot.transport.conf.TransportClientConf.RoutingMode;
@@ -213,7 +214,7 @@ public class BrokerServerBuilder {
     _connPool.start();
     _state.set(State.RUNNING);
     if (listener != null) {
-      listener.init(_connPool, BrokerRequestHandler.DEFAULT_BROKER_TIME_OUT_MS);
+      listener.init(_connPool, CommonConstants.Broker.DEFAULT_BROKER_TIME_OUT_MS);
     }
     LOGGER.info("Network running !!");
   }
