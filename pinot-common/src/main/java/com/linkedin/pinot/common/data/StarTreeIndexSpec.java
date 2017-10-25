@@ -20,6 +20,9 @@ import com.google.common.base.Objects;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 
 
@@ -100,10 +103,7 @@ public class StarTreeIndexSpec {
 
   @Override
   public String toString() {
-    return Objects.toStringHelper(this)
-        .add("maxLeafRecords", maxLeafRecords)
-        .add("dimensionsSplitOrder", dimensionsSplitOrder)
-        .toString();
+    return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
   }
 
   /**

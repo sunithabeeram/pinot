@@ -18,8 +18,8 @@ package com.linkedin.pinot.tools.admin.command;
 import com.linkedin.pinot.core.data.readers.FileFormat;
 import com.linkedin.pinot.core.indexsegment.generator.SegmentGeneratorConfig;
 import com.linkedin.pinot.core.segment.creator.impl.SegmentIndexCreationDriverImpl;
-import com.linkedin.pinot.core.startree.hll.HllConfig;
-import com.linkedin.pinot.core.startree.hll.HllConstants;
+import com.linkedin.pinot.startree.hll.HllConfig;
+import com.linkedin.pinot.startree.hll.HllConstants;
 import com.linkedin.pinot.tools.Command;
 import java.io.File;
 import java.io.FilenameFilter;
@@ -80,13 +80,13 @@ public class CreateSegmentCommand extends AbstractBaseAdminCommand implements Co
 
   @Option(name = "-hllSize", required = false, metaVar = "<5,6,7,8,9>", usage = "HLL size (log scale), default is 9")
   private int _hllSize = 9;
-  
+
   @Option(name = "-hllColumns", required = false, metaVar = "<string>", usage = "Columns to compute HLL")
   private String _hllColumns;
-  
+
   @Option(name = "-hllSuffix", required = false, metaVar = "<string>", usage = "suffix for the derived HLL column")
   private String _hllSuffix = HllConstants.DEFAULT_HLL_DERIVE_COLUMN_SUFFIX;
-  
+
   @Option(name = "-numThreads", required = false, metaVar = "<int>",
       usage = "Parallelism while generating segments, default is 1.")
   private int _numThreads = 1;
@@ -154,7 +154,7 @@ public class CreateSegmentCommand extends AbstractBaseAdminCommand implements Co
     _numThreads = numThreads;
     return this;
   }
-  
+
   public CreateSegmentCommand setHllSize(int hllSize) {
     _hllSize = hllSize;
     return this;
@@ -360,7 +360,7 @@ public class CreateSegmentCommand extends AbstractBaseAdminCommand implements Co
         segmentGeneratorConfig.setHllConfig(hllConfig);
       }
     }
-    
+
     ExecutorService executor = Executors.newFixedThreadPool(_numThreads);
     int cnt = 0;
     for (final File file : files) {

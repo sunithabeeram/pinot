@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.codehaus.jackson.map.JsonMappingException;
@@ -93,5 +95,11 @@ public class CSVRecordReaderConfig implements RecordReaderConfig {
 
   public boolean columnIsDate(String column) {
     return ((_csvDateColumns != null) && (_csvDateColumns.contains(column)));
+  }
+
+
+  @Override
+  public String toString() {
+    return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
   }
 }
