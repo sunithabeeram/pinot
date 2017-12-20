@@ -16,7 +16,9 @@
 package com.linkedin.pinot.core.common.datatable;
 
 import com.linkedin.pinot.core.query.aggregation.function.customobject.AvgPair;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxNumericValue;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxRangePair;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxStringValue;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import java.io.IOException;
@@ -104,6 +106,39 @@ public class ObjectCustomSerDeTest {
 
       Assert.assertEquals(actual.getSum(), expected.getSum(), ERROR_MESSAGE);
       Assert.assertEquals(actual.getCount(), expected.getCount(), ERROR_MESSAGE);
+    }
+  }
+
+  /**
+   * Test for ser/de of {@link AvgPair}.
+   */
+  @Test
+  public void testMinMaxNumericValue()
+      throws IOException {
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+      MinMaxNumericValue expected = new MinMaxNumericValue(RANDOM.nextDouble());
+
+      byte[] bytes = ObjectCustomSerDe.serialize(expected);
+      MinMaxNumericValue actual = ObjectCustomSerDe.deserialize(bytes, ObjectType.MinMaxNumericValue);
+
+      Assert.assertEquals(actual.getValue(), expected.getValue(), ERROR_MESSAGE);
+    }
+  }
+
+  /**
+   * Test for ser/de of {@link AvgPair}.
+   */
+  @Test
+  public void testMinMaxStringValue()
+      throws IOException {
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+      int randomLength = RANDOM.nextInt(50);
+      MinMaxStringValue expected = new MinMaxStringValue(RandomStringUtils.randomAlphanumeric(randomLength));
+
+      byte[] bytes = ObjectCustomSerDe.serialize(expected);
+      MinMaxStringValue actual = ObjectCustomSerDe.deserialize(bytes, ObjectType.MinMaxStringValue);
+
+      Assert.assertEquals(actual.getValue(), expected.getValue(), ERROR_MESSAGE);
     }
   }
 

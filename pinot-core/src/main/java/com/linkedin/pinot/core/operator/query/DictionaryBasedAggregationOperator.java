@@ -15,6 +15,10 @@
  */
 package com.linkedin.pinot.core.operator.query;
 
+import com.linkedin.pinot.common.data.FieldSpec;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxNumericValue;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxStringValue;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxValue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +35,7 @@ import com.linkedin.pinot.core.query.aggregation.function.AggregationFunctionFac
 import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxRangePair;
 import com.linkedin.pinot.core.segment.index.readers.Dictionary;
 
+
 /**
  * Aggregation operator that utilizes dictionary for serving aggregation queries.
  * The dictionary operator is selected in the plan maker, if the query if of aggregation type min, max, minmaxrange
@@ -46,20 +51,22 @@ public class DictionaryBasedAggregationOperator extends BaseOperator<Intermediat
 
   private final AggregationFunctionContext[] _aggregationFunctionContexts;
   private final Map<String, Dictionary> _dictionaryMap;
+  private final Map<String, FieldSpec.DataType> _dataTypeMap;
   private final long _totalRawDocs;
   private ExecutionStatistics _executionStatistics;
 
   /**
    * Constructor for the class.
    * @param aggregationFunctionContexts Aggregation function contexts.
-   * @param totalRawDocs total raw docs from segmet metadata
+   * @param totalRawDocs total raw docs from segment metadata
    * @param dictionaryMap Map of column to its dictionary.
+   * @param dataTypeMap Map of column to dataType
    */
-  public DictionaryBasedAggregationOperator(
-      AggregationFunctionContext[] aggregationFunctionContexts, long totalRawDocs,
-      Map<String, Dictionary> dictionaryMap) {
+  public DictionaryBasedAggregationOperator(AggregationFunctionContext[] aggregationFunctionContexts, long totalRawDocs,
+      Map<String, Dictionary> dictionaryMap, Map<String, FieldSpec.DataType> dataTypeMap) {
     _aggregationFunctionContexts = aggregationFunctionContexts;
     _dictionaryMap = dictionaryMap;
+    _dataTypeMap = dataTypeMap;
     _totalRawDocs = totalRawDocs;
   }
 
@@ -74,31 +81,48 @@ public class DictionaryBasedAggregationOperator extends BaseOperator<Intermediat
           AggregationFunctionFactory.AggregationFunctionType.valueOf(function.getName().toUpperCase());
       String column = aggregationFunctionContext.getAggregationColumns()[0];
       Dictionary dictionary = _dictionaryMap.get(column);
-      AggregationResultHolder resultHolder;
+      FieldSpec.DataType dataType = _dataTypeMap.get(column);
+      AggregationResultHolder resultHolder = new ObjectAggregationResultHolder();
+
       switch (functionType) {
-      case MAX:
-        resultHolder = new DoubleAggregationResultHolder(dictionary.getDoubleValue(dictionary.length() - 1));
-        break;
-      case MIN:
-        resultHolder = new DoubleAggregationResultHolder(dictionary.getDoubleValue(0));
-        break;
-      case MINMAXRANGE:
-        double max = dictionary.getDoubleValue(dictionary.length() - 1);
-        double min = dictionary.getDoubleValue(0);
-        resultHolder = new ObjectAggregationResultHolder();
-        resultHolder.setValue(new MinMaxRangePair(min, max));
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Dictionary based aggregation operator does not support function " + function.getName());
+        case MAX:
+          MinMaxValue maxValue;
+          if (dataType.equals(FieldSpec.DataType.STRING)) {
+            maxValue = new MinMaxStringValue(dictionary.getStringValue(dictionary.length() - 1));
+          } else {
+            maxValue = new MinMaxNumericValue(dictionary.getDoubleValue(dictionary.length() - 1));
+          }
+          resultHolder.setValue(maxValue);
+          break;
+        case MIN:
+          MinMaxValue minValue;
+          if (dataType.equals(FieldSpec.DataType.STRING)) {
+            minValue = new MinMaxStringValue(dictionary.getStringValue(0));
+          } else {
+            minValue = new MinMaxNumericValue(dictionary.getDoubleValue(0));
+          }
+          resultHolder.setValue(minValue);
+          break;
+        case MINMAXRANGE:
+          if (!dataType.isNumber()) {
+            throw new UnsupportedOperationException("minmaxrange function cannot be applied to type " + dataType);
+          }
+          double max = dictionary.getDoubleValue(dictionary.length() - 1);
+          double min = dictionary.getDoubleValue(0);
+          resultHolder = new ObjectAggregationResultHolder();
+          resultHolder.setValue(new MinMaxRangePair(min, max));
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Dictionary based aggregation operator does not support function " + function.getName());
       }
       aggregationResults.add(function.extractAggregationResult(resultHolder));
     }
 
     // Create execution statistics. Set numDocsScanned to totalRawDocs for backward compatibility.
     _executionStatistics =
-        new ExecutionStatistics(_totalRawDocs, 0/* numEntriesScannedInFilter */,
-            0/* numEntriesScannedPostFilter */, _totalRawDocs);
+        new ExecutionStatistics(_totalRawDocs, 0/* numEntriesScannedInFilter */, 0/* numEntriesScannedPostFilter */,
+            _totalRawDocs);
 
     // Build intermediate result block based on aggregation result from the executor.
     return new IntermediateResultsBlock(_aggregationFunctionContexts, aggregationResults, false);

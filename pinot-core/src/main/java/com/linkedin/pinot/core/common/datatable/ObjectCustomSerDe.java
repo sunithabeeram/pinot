@@ -17,7 +17,10 @@ package com.linkedin.pinot.core.common.datatable;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLog;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.AvgPair;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxNumericValue;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxRangePair;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxStringValue;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxValue;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.QuantileDigest;
 import com.linkedin.pinot.core.segment.creator.impl.V1Constants;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
@@ -59,6 +62,10 @@ public class ObjectCustomSerDe {
       return serializeDouble((Double) object);
     } else if (object instanceof DoubleArrayList) {
       return serializeDoubleArrayList((DoubleArrayList) object);
+    } else if (object instanceof MinMaxNumericValue) {
+      return ((MinMaxNumericValue) object).toBytes();
+    } else if (object instanceof MinMaxStringValue) {
+      return ((MinMaxStringValue) object).toBytes();
     } else if (object instanceof AvgPair) {
       return ((AvgPair) object).toBytes();
     } else if (object instanceof MinMaxRangePair) {
@@ -92,6 +99,10 @@ public class ObjectCustomSerDe {
         return (T) new Double(ByteBuffer.wrap(bytes).getDouble());
       case DoubleArrayList:
         return (T) deserializeDoubleArray(bytes);
+      case MinMaxNumericValue:
+        return (T) MinMaxNumericValue.fromBytes(bytes);
+      case MinMaxStringValue:
+        return (T) MinMaxStringValue.fromBytes(bytes);
       case AvgPair:
         return (T) AvgPair.fromBytes(bytes);
       case MinMaxRangePair:
@@ -126,6 +137,10 @@ public class ObjectCustomSerDe {
         return (T) new Double(byteBuffer.getDouble());
       case DoubleArrayList:
         return (T) deserializeDoubleArray(byteBuffer);
+      case MinMaxNumericValue:
+        return (T) MinMaxNumericValue.fromByteBuffer(byteBuffer);
+      case MinMaxStringValue:
+        return (T) MinMaxStringValue.fromByteBuffer(byteBuffer);
       case AvgPair:
         return (T) AvgPair.fromByteBuffer(byteBuffer);
       case MinMaxRangePair:
@@ -170,6 +185,10 @@ public class ObjectCustomSerDe {
       return ObjectType.Double;
     } else if (object instanceof DoubleArrayList) {
       return ObjectType.DoubleArrayList;
+    } else if (object instanceof MinMaxNumericValue) {
+      return ObjectType.MinMaxNumericValue;
+    } else if (object instanceof MinMaxStringValue) {
+      return ObjectType.MinMaxStringValue;
     } else if (object instanceof AvgPair) {
       return ObjectType.AvgPair;
     } else if (object instanceof MinMaxRangePair) {

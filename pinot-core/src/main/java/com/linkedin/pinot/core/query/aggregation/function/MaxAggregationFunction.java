@@ -16,17 +16,21 @@
 package com.linkedin.pinot.core.query.aggregation.function;
 
 import com.linkedin.pinot.common.data.FieldSpec;
+import com.linkedin.pinot.common.data.FieldSpec.DataType;
 import com.linkedin.pinot.core.common.BlockValSet;
 import com.linkedin.pinot.core.query.aggregation.AggregationResultHolder;
-import com.linkedin.pinot.core.query.aggregation.DoubleAggregationResultHolder;
-import com.linkedin.pinot.core.query.aggregation.groupby.DoubleGroupByResultHolder;
+import com.linkedin.pinot.core.query.aggregation.ObjectAggregationResultHolder;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxNumericValue;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxStringValue;
+import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxValue;
 import com.linkedin.pinot.core.query.aggregation.groupby.GroupByResultHolder;
+
+import com.linkedin.pinot.core.query.aggregation.groupby.ObjectGroupByResultHolder;
 import javax.annotation.Nonnull;
 
 
-public class MaxAggregationFunction implements AggregationFunction<Double, Double> {
+public class MaxAggregationFunction implements AggregationFunction<MinMaxValue, MinMaxValue> {
   private static final String NAME = AggregationFunctionFactory.AggregationFunctionType.MAX.getName();
-  private static final double DEFAULT_INITIAL_VALUE = Double.NEGATIVE_INFINITY;
 
   @Nonnull
   @Override
@@ -48,72 +52,149 @@ public class MaxAggregationFunction implements AggregationFunction<Double, Doubl
   @Nonnull
   @Override
   public AggregationResultHolder createAggregationResultHolder() {
-    return new DoubleAggregationResultHolder(DEFAULT_INITIAL_VALUE);
+    return new ObjectAggregationResultHolder();
   }
 
   @Nonnull
   @Override
   public GroupByResultHolder createGroupByResultHolder(int initialCapacity, int maxCapacity, int trimSize) {
-    return new DoubleGroupByResultHolder(initialCapacity, maxCapacity, trimSize, DEFAULT_INITIAL_VALUE);
+    return new ObjectGroupByResultHolder(initialCapacity, maxCapacity, trimSize);
   }
 
   @Override
   public void aggregate(int length, @Nonnull AggregationResultHolder aggregationResultHolder,
       @Nonnull BlockValSet... blockValSets) {
-    double[] valueArray = blockValSets[0].getDoubleValuesSV();
-    double max = aggregationResultHolder.getDoubleResult();
-    for (int i = 0; i < length; i++) {
-      double value = valueArray[i];
-      if (value > max) {
-        max = value;
-      }
+    DataType dataType = blockValSets[0].getValueType();
+    MinMaxValue maxValue;
+    switch (dataType) {
+      case FLOAT:
+      case INT:
+      case LONG:
+      case SHORT:
+      case DOUBLE:
+        double[] doubleValueArray = blockValSets[0].getDoubleValuesSV();
+        double maxDouble = Double.MIN_VALUE;
+        for (int i = 0; i < length; i++) {
+          double value = doubleValueArray[i];
+          if (value > maxDouble) {
+            maxDouble = value;
+          }
+        }
+        maxValue = new MinMaxNumericValue(maxDouble);
+        break;
+
+      case STRING:
+        String[] stringValueArray = blockValSets[0].getStringValuesSV();
+        String maxString = "";
+        for (int i = 0; i < length; i++) {
+          String value = stringValueArray[i];
+          if (value.compareTo(maxString) > 0) {
+            maxString = value;
+          }
+        }
+        maxValue = new MinMaxStringValue(maxString);
+        break;
+
+      default:
+        throw new IllegalArgumentException("Max operation not supported on datatype " + dataType);
     }
-    aggregationResultHolder.setValue(max);
+    setAggregationResult(aggregationResultHolder, maxValue);
+  }
+
+  protected void setAggregationResult(@Nonnull AggregationResultHolder aggregationResultHolder, MinMaxValue maxValue) {
+    MinMaxValue prevMaxValue = aggregationResultHolder.getResult();
+    if (prevMaxValue == null) {
+      aggregationResultHolder.setValue(maxValue);
+    } else {
+      prevMaxValue.applyMax(maxValue.getValue());
+    }
+    aggregationResultHolder.setValue(maxValue);
   }
 
   @Override
   public void aggregateGroupBySV(int length, @Nonnull int[] groupKeyArray,
       @Nonnull GroupByResultHolder groupByResultHolder, @Nonnull BlockValSet... blockValSets) {
-    double[] valueArray = blockValSets[0].getDoubleValuesSV();
-    for (int i = 0; i < length; i++) {
-      double value = valueArray[i];
-      int groupKey = groupKeyArray[i];
-      if (value > groupByResultHolder.getDoubleResult(groupKey)) {
-        groupByResultHolder.setValueForKey(groupKey, value);
-      }
+    DataType dataType = blockValSets[0].getValueType();
+    switch (dataType) {
+      case FLOAT:
+      case INT:
+      case LONG:
+      case SHORT:
+      case DOUBLE:
+        double[] doubleValueArray = blockValSets[0].getDoubleValuesSV();
+        for (int i = 0; i < length; i++) {
+          setGroupByResult(groupKeyArray[i], groupByResultHolder, new MinMaxNumericValue(doubleValueArray[i]));
+        }
+        break;
+      case STRING:
+        String[] stringValueArray = blockValSets[0].getStringValuesSV();
+        for (int i = 0; i < length; i++) {
+          setGroupByResult(groupKeyArray[i], groupByResultHolder, new MinMaxStringValue(stringValueArray[i]));
+        }
+        break;
+      default:
+        throw new IllegalArgumentException("Max operation not supported on datatype " + dataType);
     }
+
   }
 
   @Override
   public void aggregateGroupByMV(int length, @Nonnull int[][] groupKeysArray,
       @Nonnull GroupByResultHolder groupByResultHolder, @Nonnull BlockValSet... blockValSets) {
-    double[] valueArray = blockValSets[0].getDoubleValuesSV();
-    for (int i = 0; i < length; i++) {
-      double value = valueArray[i];
-      for (int groupKey : groupKeysArray[i]) {
-        if (value > groupByResultHolder.getDoubleResult(groupKey)) {
-          groupByResultHolder.setValueForKey(groupKey, value);
+    DataType dataType = blockValSets[0].getValueType();
+    switch (dataType) {
+      case FLOAT:
+      case INT:
+      case LONG:
+      case SHORT:
+      case DOUBLE:
+        double[] doubleValueArray = blockValSets[0].getDoubleValuesSV();
+        for (int i = 0; i < length; i++) {
+          double value = doubleValueArray[i];
+          for (int groupKey : groupKeysArray[i]) {
+            setGroupByResult(groupKey, groupByResultHolder, new MinMaxNumericValue(value));
+          }
         }
-      }
+        break;
+      case STRING:
+        String[] stringValueArray = blockValSets[0].getStringValuesSV();
+        for (int i = 0; i < length; i++) {
+          String value = stringValueArray[i];
+          for (int groupKey : groupKeysArray[i]) {
+            setGroupByResult(groupKey, groupByResultHolder, new MinMaxStringValue(value));
+          }
+        }
+        break;
+      default:
+        throw new IllegalArgumentException("Max operation not supported on datatype " + dataType);
+    }
+  }
+
+  protected void setGroupByResult(int groupKey, @Nonnull GroupByResultHolder groupByResultHolder, MinMaxValue maxValue) {
+    MinMaxValue prevMaxValue = groupByResultHolder.getResult(groupKey);
+    if (prevMaxValue == null) {
+      groupByResultHolder.setValueForKey(groupKey, maxValue);
+    } else {
+      prevMaxValue.applyMax(maxValue.getValue());
     }
   }
 
   @Nonnull
   @Override
-  public Double extractAggregationResult(@Nonnull AggregationResultHolder aggregationResultHolder) {
-    return aggregationResultHolder.getDoubleResult();
+  public MinMaxValue extractAggregationResult(@Nonnull AggregationResultHolder aggregationResultHolder) {
+    return aggregationResultHolder.getResult();
   }
 
   @Nonnull
   @Override
-  public Double extractGroupByResult(@Nonnull GroupByResultHolder groupByResultHolder, int groupKey) {
-    return groupByResultHolder.getDoubleResult(groupKey);
+  public MinMaxValue extractGroupByResult(@Nonnull GroupByResultHolder groupByResultHolder, int groupKey) {
+    return groupByResultHolder.getResult(groupKey);
   }
 
   @Nonnull
   @Override
-  public Double merge(@Nonnull Double intermediateResult1, @Nonnull Double intermediateResult2) {
-    if (intermediateResult1 > intermediateResult2) {
+  public MinMaxValue merge(@Nonnull MinMaxValue intermediateResult1, @Nonnull MinMaxValue intermediateResult2) {
+    if (intermediateResult1.compareTo(intermediateResult2) > 0) {
       return intermediateResult1;
     } else {
       return intermediateResult2;
@@ -128,12 +209,12 @@ public class MaxAggregationFunction implements AggregationFunction<Double, Doubl
   @Nonnull
   @Override
   public FieldSpec.DataType getIntermediateResultDataType() {
-    return FieldSpec.DataType.DOUBLE;
+    return FieldSpec.DataType.OBJECT;
   }
 
   @Nonnull
   @Override
-  public Double extractFinalResult(@Nonnull Double intermediateResult) {
+  public MinMaxValue extractFinalResult(@Nonnull MinMaxValue intermediateResult) {
     return intermediateResult;
   }
 }

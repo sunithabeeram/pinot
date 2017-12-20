@@ -65,6 +65,7 @@ public class AggregationOperator extends BaseOperator<IntermediateResultsBlock> 
         new ExecutionStatistics(numDocsScanned, numEntriesScannedInFilter, numEntriesScannedPostFilter,
             _numTotalRawDocs);
 
+    System.out.println("Inside Aggregation Operator");
     // Build intermediate result block based on aggregation result from the executor.
     return new IntermediateResultsBlock(_aggregationFunctionContexts, aggregationExecutor.getResult(), false);
   }

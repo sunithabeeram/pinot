@@ -28,12 +28,14 @@ public enum ObjectType {
   Long(1),
   Double(2),
   DoubleArrayList(3),
-  AvgPair(4),
-  MinMaxRangePair(5),
-  HyperLogLog(6),
-  QuantileDigest(7),
-  HashMap(8),
-  IntOpenHashSet(9);
+  MinMaxNumericValue(4),
+  MinMaxStringValue(5),
+  AvgPair(6),
+  MinMaxRangePair(7),
+  HyperLogLog(8),
+  QuantileDigest(9),
+  HashMap(10),
+  IntOpenHashSet(11);
 
   // Map from type value to type.
   private static Map<Integer, ObjectType> _objectTypeMap = new HashMap<>();
