@@ -24,7 +24,9 @@ import org.joda.time.format.DateTimeFormat;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.linkedin.pinot.common.request.transform.TransformExpressionTree;
 import com.linkedin.pinot.core.data.GenericRow;
+import com.linkedin.pinot.pql.parsers.Pql2Compiler;
 
 import scala.collection.mutable.StringBuilder;
 
@@ -74,6 +76,11 @@ public class FunctionExpressionEvaluatorTest {
     Assert.assertEquals(result, MyFunc.daysSinceEpoch(input, format));
   }
 
+  @Test
+  public void testTimeConvertUDF(){
+    TransformExpressionTree expressionTree = new Pql2Compiler().compileToExpressionTree("sdf2Millis(column*'1000')");
+    System.out.println(expressionTree);
+  }
   static class MyFunc {
 
     public static String reverseString(String input) {

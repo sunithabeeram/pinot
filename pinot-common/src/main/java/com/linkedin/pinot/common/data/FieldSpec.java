@@ -18,8 +18,17 @@ package com.linkedin.pinot.common.data;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.linkedin.pinot.common.request.transform.TransformExpressionTree;
 import com.linkedin.pinot.common.utils.DataSchema;
 import com.linkedin.pinot.common.utils.EqualityUtils;
+import com.linkedin.pinot.pql.parsers.Pql2Compiler;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import javax.annotation.Nonnull;
 import org.apache.avro.Schema.Type;
 
@@ -55,8 +64,10 @@ public abstract class FieldSpec {
 
   private transient String _stringDefaultNullValue;
   
-  //apply a transform function to generate this column, this can be based on another column
-  private String _transformFunction; 
+  // apply a transform function to generate this column, this can be based on another column
+  private String _transformFunction;
+
+  private Set<String> _columnsInTransformFunction;
 
   // Default constructor required by JSON de-serializer. DO NOT REMOVE.
   public FieldSpec() {
@@ -190,6 +201,42 @@ public abstract class FieldSpec {
   public String getTransformFunction() {
     return _transformFunction;
   }
+
+  public Set<String> getColumnsInTransformFunction() {
+    if(_columnsInTransformFunction != null) {
+      return _columnsInTransformFunction;
+    }
+    if (_columnsInTransformFunction == null && _transformFunction != null) {
+      TransformExpressionTree expressionTree = Pql2Compiler.get().compileToExpressionTree(_transformFunction);
+      _columnsInTransformFunction = new HashSet<>();
+      traverse(expressionTree, _columnsInTransformFunction);
+      return _columnsInTransformFunction;
+    } else {
+      _columnsInTransformFunction = Collections.emptySet();
+    }
+    return _columnsInTransformFunction;
+  }
+
+  private void traverse(TransformExpressionTree expressionTree, Set<String> columns) {
+    List<TransformExpressionTree> children = expressionTree.getChildren();
+    for (TransformExpressionTree transformExpressionTree : children) {
+      for (int i = 0; i < children.size(); i++) {
+        TransformExpressionTree childExpression = children.get(i);
+        switch (childExpression.getExpressionType()) {
+        case FUNCTION:
+          break;
+        case IDENTIFIER:
+          columns.add(childExpression.getValue());
+          break;
+        case LITERAL:
+          break;
+        default:
+          throw new UnsupportedOperationException("Unsupported expression type:" + childExpression.getExpressionType());
+        }
+      }
+    }
+  }
+
   /**
    * Returns the {@link JsonObject} representing the field spec.
    * <p>Only contains fields with non-default value.
