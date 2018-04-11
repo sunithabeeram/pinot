@@ -17,14 +17,12 @@ package com.linkedin.pinot.core.realtime;
 
 import com.linkedin.pinot.common.data.Schema;
 import com.linkedin.pinot.common.metadata.segment.RealtimeSegmentZKMetadata;
+import com.linkedin.pinot.core.indexsegment.mutable.MutableSegmentImpl;
 import com.linkedin.pinot.core.io.writer.impl.DirectMemoryManager;
 import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentConfig;
-import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentImpl;
 import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentStatsHistory;
-import java.io.IOException;
 import java.util.Collections;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 
@@ -32,22 +30,22 @@ public class RealtimeSegmentTestUtils {
   private RealtimeSegmentTestUtils() {
   }
 
-  public static RealtimeSegmentImpl createRealtimeSegmentImpl(Schema schema, int sizeThresholdToFlushSegment,
-      String segmentName, String streamName) throws IOException {
+  public static MutableSegmentImpl createRealtimeSegmentImpl(Schema schema, int sizeThresholdToFlushSegment,
+      String segmentName, String streamName) {
     RealtimeSegmentStatsHistory statsHistory = mock(RealtimeSegmentStatsHistory.class);
-    when(statsHistory.getEstimatedCardinality(any(String.class))).thenReturn(200);
-    when(statsHistory.getEstimatedAvgColSize(any(String.class))).thenReturn(32);
+    when(statsHistory.getEstimatedCardinality(anyString())).thenReturn(200);
+    when(statsHistory.getEstimatedAvgColSize(anyString())).thenReturn(32);
     RealtimeSegmentConfig realtimeSegmentConfig = new RealtimeSegmentConfig.Builder().setSegmentName(segmentName)
         .setStreamName(streamName)
         .setSchema(schema)
         .setCapacity(sizeThresholdToFlushSegment)
         .setAvgNumMultiValues(2)
-        .setNoDictionaryColumns(Collections.<String>emptySet())
-        .setInvertedIndexColumns(Collections.<String>emptySet())
+        .setNoDictionaryColumns(Collections.emptySet())
+        .setInvertedIndexColumns(Collections.emptySet())
         .setRealtimeSegmentZKMetadata(new RealtimeSegmentZKMetadata())
         .setMemoryManager(new DirectMemoryManager(segmentName))
         .setStatsHistory(statsHistory)
         .build();
-    return new RealtimeSegmentImpl(realtimeSegmentConfig);
+    return new MutableSegmentImpl(realtimeSegmentConfig);
   }
 }

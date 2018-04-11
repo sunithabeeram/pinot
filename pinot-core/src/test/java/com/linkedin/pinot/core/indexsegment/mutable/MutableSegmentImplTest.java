@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.linkedin.pinot.core.realtime.impl;
+package com.linkedin.pinot.core.indexsegment.mutable;
 
 import com.linkedin.pinot.common.data.DimensionFieldSpec;
 import com.linkedin.pinot.common.data.FieldSpec;
@@ -21,53 +21,44 @@ import com.linkedin.pinot.common.data.MetricFieldSpec;
 import com.linkedin.pinot.common.data.Schema;
 import com.linkedin.pinot.common.metadata.segment.RealtimeSegmentZKMetadata;
 import com.linkedin.pinot.core.data.GenericRow;
-import com.linkedin.pinot.core.io.readerwriter.PinotDataBufferMemoryManager;
 import com.linkedin.pinot.core.io.writer.impl.MmapMemoryManager;
-import java.io.IOException;
+import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentConfig;
+import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentStatsHistory;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.RandomStringUtils;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
-/**
- * Unit test for {@link RealtimeSegmentImpl}
- */
-public class RealtimeSegmentImplTest {
-
+public class MutableSegmentImplTest {
   private static final String DIMENSION_1 = "dim1";
   private static final String DIMENSION_2 = "dim2";
   private static final String METRIC_COLUMN = "metric";
-  private static final String SEGMENT_NAME = "realtimeSegmentImplTest";
-  private static final String _keySeparator = "\t\t";
+  private static final String SEGMENT_NAME = "testSegment";
+  private static final String KEY_SEPARATOR = "\t\t";
   private static final int NUM_ROWS = 10001;
+  private static final Random RANDOM = new Random();
 
   private RealtimeSegmentConfig.Builder _configBuilder;
-  private RealtimeSegmentImpl _realtimeSegment;
-  private Random _random;
+  private MutableSegment _mutableSegment;
 
   @BeforeClass
-  public void setup() {
-    PinotDataBufferMemoryManager memoryManager = new MmapMemoryManager("/tmp", SEGMENT_NAME);
-    _configBuilder = new RealtimeSegmentConfig.Builder();
-    _random = new Random(System.nanoTime());
-
+  public void setUp() {
     RealtimeSegmentStatsHistory statsHistory = mock(RealtimeSegmentStatsHistory.class);
-    when(statsHistory.getEstimatedAvgColSize(any(String.class))).thenReturn(32);
-    when(statsHistory.getEstimatedCardinality(any(String.class))).thenReturn(200);
+    when(statsHistory.getEstimatedAvgColSize(anyString())).thenReturn(32);
+    when(statsHistory.getEstimatedCardinality(anyString())).thenReturn(200);
 
-    _configBuilder.setCapacity(1000000)
-        .setMemoryManager(memoryManager)
+    _configBuilder = new RealtimeSegmentConfig.Builder().setCapacity(1000000)
+        .setMemoryManager(new MmapMemoryManager(FileUtils.getTempDirectoryPath(), SEGMENT_NAME))
         .setNoDictionaryColumns(new HashSet<>(Collections.singletonList(METRIC_COLUMN)))
         .setOffHeap(true)
         .setSchema(buildSchema())
@@ -78,52 +69,36 @@ public class RealtimeSegmentImplTest {
         .setAggregateMetrics(true);
   }
 
-  @AfterClass
-  public void tearDown()
-      throws IOException {
-    _realtimeSegment.destroy();
-  }
-
-  /**
-   * This test generates a {@link RealtimeSegmentImpl} object and indexes rows with
-   * duplicate dimension values in it, and ensures that metrics are aggregated correctly.
-   *
-   */
   @Test
-  public void test() {
-    _realtimeSegment = new RealtimeSegmentImpl(_configBuilder.build());
+  public void testAggregateMetrics() {
+    _mutableSegment = new MutableSegmentImpl(_configBuilder.build());
     String[] stringValues = new String[10]; // 10 unique strings.
     for (int i = 0; i < stringValues.length; i++) {
       stringValues[i] = RandomStringUtils.random(10);
     }
 
-    Map<String, Integer> expectedMap = new LinkedHashMap<>();
+    Map<String, Integer> expectedMap = new HashMap<>();
     for (int i = 0; i < NUM_ROWS; i++) {
       GenericRow row = new GenericRow();
 
-      row.putField(DIMENSION_1, (long) _random.nextInt(10)); // 10 unique values
-      row.putField(DIMENSION_2, stringValues[_random.nextInt(stringValues.length)]); // 10 unique values
+      row.putField(DIMENSION_1, (long) RANDOM.nextInt(10)); // 10 unique values
+      row.putField(DIMENSION_2, stringValues[RANDOM.nextInt(stringValues.length)]); // 10 unique values
 
-      int metricValue = _random.nextInt();
+      int metricValue = RANDOM.nextInt();
       row.putField(METRIC_COLUMN, metricValue);
-      _realtimeSegment.index(row);
+      _mutableSegment.index(row);
 
       // Collect expected results.
       String key = buildKey(row);
-      Integer sum = expectedMap.get(key);
-      if (sum == null) {
-        expectedMap.put(key, metricValue);
-      } else {
-        expectedMap.put(key, sum + metricValue);
-      }
+      expectedMap.put(key, expectedMap.getOrDefault(key, 0) + metricValue);
     }
 
-    int numDocsIndexed = _realtimeSegment.getNumDocsIndexed();
+    int numDocsIndexed = _mutableSegment.getNumDocsIndexed();
     Assert.assertEquals(numDocsIndexed, expectedMap.size());
 
     GenericRow row = new GenericRow();
     for (int docId = 0; docId < numDocsIndexed; docId++) {
-      _realtimeSegment.getRecord(docId, row);
+      _mutableSegment.getRecord(docId, row);
       String key = buildKey(row);
       Assert.assertEquals(row.getValue(METRIC_COLUMN), expectedMap.get(key));
     }
@@ -136,9 +111,7 @@ public class RealtimeSegmentImplTest {
    * @return String key for the given row.
    */
   private String buildKey(GenericRow row) {
-    return String.valueOf(row.getValue(DIMENSION_1)) +
-        _keySeparator +
-        row.getValue(DIMENSION_2);
+    return String.valueOf(row.getValue(DIMENSION_1)) + KEY_SEPARATOR + row.getValue(DIMENSION_2);
   }
 
   /**
@@ -152,5 +125,10 @@ public class RealtimeSegmentImplTest {
     schema.addField(new DimensionFieldSpec(DIMENSION_2, FieldSpec.DataType.STRING, true));
     schema.addField(new MetricFieldSpec(METRIC_COLUMN, FieldSpec.DataType.INT));
     return schema;
+  }
+
+  @AfterClass
+  public void tearDown() {
+    _mutableSegment.destroy();
   }
 }

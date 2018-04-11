@@ -30,6 +30,8 @@ import com.linkedin.pinot.core.common.predicate.NEqPredicate;
 import com.linkedin.pinot.core.common.predicate.RangePredicate;
 import com.linkedin.pinot.core.data.GenericRow;
 import com.linkedin.pinot.core.data.readers.FileFormat;
+import com.linkedin.pinot.core.indexsegment.mutable.MutableSegment;
+import com.linkedin.pinot.core.indexsegment.mutable.MutableSegmentImpl;
 import com.linkedin.pinot.core.io.writer.impl.DirectMemoryManager;
 import com.linkedin.pinot.core.operator.filter.BitmapBasedFilterOperator;
 import com.linkedin.pinot.core.operator.filter.ScanBasedFilterOperator;
@@ -38,7 +40,6 @@ import com.linkedin.pinot.core.operator.filter.predicate.PredicateEvaluatorProvi
 import com.linkedin.pinot.core.realtime.impl.FileBasedStreamProviderConfig;
 import com.linkedin.pinot.core.realtime.impl.FileBasedStreamProviderImpl;
 import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentConfig;
-import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentImpl;
 import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentStatsHistory;
 import com.linkedin.pinot.segments.v1.creator.SegmentTestUtils;
 import com.yammer.metrics.core.MetricsRegistry;
@@ -61,8 +62,8 @@ public class RealtimeSegmentTest {
   private static String filePath;
   private static Map<String, FieldType> fieldTypeMap;
   private static Schema schema;
-  private static RealtimeSegment segmentWithInvIdx;
-  private static RealtimeSegment segmentWithoutInvIdx;
+  private static MutableSegment segmentWithInvIdx;
+  private static MutableSegment segmentWithoutInvIdx;
 
   @BeforeClass
   public static void before() throws Exception {
@@ -103,7 +104,7 @@ public class RealtimeSegmentTest {
         .setMemoryManager(new DirectMemoryManager("noSegment"))
         .setStatsHistory(statsHistory)
         .build();
-    segmentWithInvIdx = new RealtimeSegmentImpl(realtimeSegmentConfig);
+    segmentWithInvIdx = new MutableSegmentImpl(realtimeSegmentConfig);
     segmentWithoutInvIdx = RealtimeSegmentTestUtils.createRealtimeSegmentImpl(schema, 100000, "noSegment", AVRO_DATA);
     GenericRow row = provider.next(new GenericRow());
     while (row != null) {

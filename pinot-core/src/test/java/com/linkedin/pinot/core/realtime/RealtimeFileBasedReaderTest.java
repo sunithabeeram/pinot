@@ -27,13 +27,13 @@ import com.linkedin.pinot.core.common.BlockSingleValIterator;
 import com.linkedin.pinot.core.common.DataSource;
 import com.linkedin.pinot.core.data.GenericRow;
 import com.linkedin.pinot.core.data.readers.FileFormat;
-import com.linkedin.pinot.core.indexsegment.IndexSegment;
 import com.linkedin.pinot.core.indexsegment.generator.SegmentVersion;
+import com.linkedin.pinot.core.indexsegment.immutable.ImmutableSegment;
+import com.linkedin.pinot.core.indexsegment.immutable.ImmutableSegmentLoader;
+import com.linkedin.pinot.core.indexsegment.mutable.MutableSegmentImpl;
 import com.linkedin.pinot.core.realtime.converter.RealtimeSegmentConverter;
 import com.linkedin.pinot.core.realtime.impl.FileBasedStreamProviderConfig;
 import com.linkedin.pinot.core.realtime.impl.FileBasedStreamProviderImpl;
-import com.linkedin.pinot.core.realtime.impl.RealtimeSegmentImpl;
-import com.linkedin.pinot.core.segment.index.loader.Loaders;
 import com.linkedin.pinot.segments.v1.creator.SegmentTestUtils;
 import com.yammer.metrics.core.MetricsRegistry;
 import java.io.File;
@@ -54,8 +54,8 @@ public class RealtimeFileBasedReaderTest {
   private static String filePath;
   private static Map<String, FieldType> fieldTypeMap;
   private static Schema schema;
-  private static RealtimeSegmentImpl realtimeSegment;
-  private static IndexSegment offlineSegment;
+  private static MutableSegmentImpl realtimeSegment;
+  private static ImmutableSegment offlineSegment;
   private static final String segmentName = "someSegment";
 
   private void setUp(SegmentVersion segmentVersion) throws Exception {
@@ -99,7 +99,7 @@ public class RealtimeFileBasedReaderTest {
         new RealtimeSegmentConverter(realtimeSegment, "/tmp/realtime", schema, tableName, segmentName, null);
     conveter.build(segmentVersion, new ServerMetrics(new MetricsRegistry()));
 
-    offlineSegment = Loaders.IndexSegment.load(new File("/tmp/realtime").listFiles()[0], ReadMode.mmap);
+    offlineSegment = ImmutableSegmentLoader.load(new File("/tmp/realtime").listFiles()[0], ReadMode.mmap);
   }
 
   @Test
