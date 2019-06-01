@@ -73,6 +73,8 @@ public class RealtimeClusterIntegrationTest extends BaseClusterIntegrationTestSe
     // Create Pinot table
     setUpTable(avroFiles.get(0));
 
+    Thread.sleep(100000000L);
+
     // Wait for all documents loaded
     waitForAllDocsLoaded(600_000L);
   }

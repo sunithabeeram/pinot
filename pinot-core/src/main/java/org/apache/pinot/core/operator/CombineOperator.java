@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.core.common.Block;
@@ -88,6 +89,10 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
       operatorGroups.get(i % numGroups).add(_operators.get(i));
     }
 
+    AtomicLong filterTotalThreadDurationMs = new AtomicLong();
+    AtomicLong opTotalThreadDurationMs = new AtomicLong();
+    AtomicLong mergeTotalThreadDurationMs = new AtomicLong();
+
     final BlockingQueue<Block> blockingQueue = new ArrayBlockingQueue<>(numGroups);
     // Submit operators.
     for (final List<Operator> operatorGroup : operatorGroups) {
@@ -97,7 +102,11 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
           IntermediateResultsBlock mergedBlock = null;
           try {
             for (Operator operator : operatorGroup) {
+              long startTime = System.currentTimeMillis();
               IntermediateResultsBlock blockToMerge = (IntermediateResultsBlock) operator.nextBlock();
+              filterTotalThreadDurationMs.addAndGet(operator.getExecutionStatistics().getFilterDurationMs());
+              long opEndTime = System.currentTimeMillis();
+              opTotalThreadDurationMs.addAndGet(opEndTime - startTime);
               if (mergedBlock == null) {
                 mergedBlock = blockToMerge;
               } else {
@@ -109,12 +118,14 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
                       .addToProcessingExceptions(QueryException.getException(QueryException.MERGE_RESPONSE_ERROR, e));
                 }
               }
+              mergeTotalThreadDurationMs.addAndGet(System.currentTimeMillis() - opEndTime);
             }
           } catch (Exception e) {
             LOGGER.error("Caught exception while executing query.", e);
             mergedBlock = new IntermediateResultsBlock(e);
           }
           assert mergedBlock != null;
+
           blockingQueue.offer(mergedBlock);
         }
       });
@@ -129,6 +140,7 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
               throws Exception {
             int mergedBlocksNumber = 0;
             IntermediateResultsBlock mergedBlock = null;
+            long startTime = System.currentTimeMillis();
             while (mergedBlocksNumber < numGroups) {
               if (mergedBlock == null) {
                 mergedBlock = (IntermediateResultsBlock) blockingQueue
@@ -156,6 +168,7 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
                 }
               }
             }
+            mergeTotalThreadDurationMs.addAndGet(System.currentTimeMillis() - startTime);
             return mergedBlock;
           }
         });
@@ -164,6 +177,14 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
     IntermediateResultsBlock mergedBlock;
     try {
       mergedBlock = mergedBlockFuture.get(queryEndTime - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+      long parallelTimeMs = System.currentTimeMillis() - startTime;
+      long totalSerialTime = opTotalThreadDurationMs.get() + mergeTotalThreadDurationMs.get();
+      double estFilterTimeMs = (double)(filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
+      double estPostFilterTimeMs = (double)(opTotalThreadDurationMs.get() - filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
+      double estMergeTimeMs = (double)mergeTotalThreadDurationMs.get()/totalSerialTime * parallelTimeMs;
+
+      LOGGER.info("Query latency breakdown: estFilterDurationMs={} estPostFilterDuration={} estMergeDurationMs={}", estFilterTimeMs,
+          estPostFilterTimeMs, estMergeTimeMs);
     } catch (InterruptedException e) {
       LOGGER.error("Caught InterruptedException.", e);
       mergedBlock = new IntermediateResultsBlock(QueryException.getException(QueryException.FUTURE_CALL_ERROR, e));
@@ -191,6 +212,7 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
     mergedBlock.setNumTotalRawDocs(executionStatistics.getNumTotalRawDocs());
     mergedBlock.setNumSegmentsProcessed(executionStatistics.getNumSegmentsProcessed());
     mergedBlock.setNumSegmentsMatched(executionStatistics.getNumSegmentsMatched());
+    mergedBlock.setFilterDurationMs(executionStatistics.getFilterDurationMs());
 
     return mergedBlock;
   }

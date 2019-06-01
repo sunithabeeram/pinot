@@ -49,6 +49,8 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
   private FilterBlockDocIdSet _filterBlockDocIdSet;
   private BlockDocIdIterator _blockDocIdIterator;
   private int _currentDocId = 0;
+  private long _startTime = Long.MIN_VALUE;
+  private long _endTime = Long.MIN_VALUE;
 
   public DocIdSetOperator(@Nonnull BaseFilterOperator filterOperator, int maxSizeOfDocIdSet) {
     Preconditions.checkArgument(maxSizeOfDocIdSet > 0 && maxSizeOfDocIdSet <= DocIdSetPlanNode.MAX_DOC_PER_CALL);
@@ -58,7 +60,12 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
 
   @Override
   protected DocIdSetBlock getNextBlock() {
+    if (_startTime == Long.MIN_VALUE) {
+      _startTime = System.currentTimeMillis();
+    }
+
     if (_currentDocId == Constants.EOF) {
+      _endTime = System.currentTimeMillis();
       return null;
     }
 
@@ -80,6 +87,7 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
     if (pos > 0) {
       return new DocIdSetBlock(docIds, pos);
     } else {
+      _endTime = System.currentTimeMillis();
       return null;
     }
   }
@@ -91,6 +99,13 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
 
   @Override
   public ExecutionStatistics getExecutionStatistics() {
-    return new ExecutionStatistics(0L, _filterBlockDocIdSet.getNumEntriesScannedInFilter(), 0L, 0L);
+    if (_startTime == Long.MIN_VALUE) {
+      _startTime = System.currentTimeMillis();
+    }
+    if (_endTime == Long.MIN_VALUE) {
+      // this shouldn't happen!
+      _endTime = System.currentTimeMillis();
+    }
+    return new ExecutionStatistics(0L, _filterBlockDocIdSet.getNumEntriesScannedInFilter(), 0L, 0L, _endTime - _startTime);
   }
 }

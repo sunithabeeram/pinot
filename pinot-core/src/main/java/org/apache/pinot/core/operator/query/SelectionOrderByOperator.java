@@ -99,7 +99,7 @@ public class SelectionOrderByOperator extends BaseOperator<IntermediateResultsBl
     long numTotalRawDocs = _indexSegment.getSegmentMetadata().getTotalRawDocs();
     _executionStatistics =
         new ExecutionStatistics(numDocsScanned, numEntriesScannedInFilter, numEntriesScannedPostFilter,
-            numTotalRawDocs);
+            numTotalRawDocs, _projectionOperator.getExecutionStatistics().getFilterDurationMs());
 
     return new IntermediateResultsBlock(_selectionOperatorService.getDataSchema(), _selectionOperatorService.getRows());
   }
