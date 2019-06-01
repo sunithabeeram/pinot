@@ -28,18 +28,21 @@ public class ExecutionStatistics {
   private long _numTotalRawDocs;
   private long _numSegmentsProcessed;
   private long _numSegmentsMatched;
+  // sum total of time spent in filtering across all segments. This is NOT wall-clock time, but time across all threads
+  private long _filterDurationMs;
 
   public ExecutionStatistics() {
   }
 
   public ExecutionStatistics(long numDocsScanned, long numEntriesScannedInFilter, long numEntriesScannedPostFilter,
-      long numTotalRawDocs) {
+      long numTotalRawDocs, long filterDurationMs) {
     _numDocsScanned = numDocsScanned;
     _numEntriesScannedInFilter = numEntriesScannedInFilter;
     _numEntriesScannedPostFilter = numEntriesScannedPostFilter;
     _numTotalRawDocs = numTotalRawDocs;
     _numSegmentsProcessed = 1;
     _numSegmentsMatched = (numDocsScanned == 0) ? 0 : 1;
+    _filterDurationMs = filterDurationMs;
   }
 
   public long getNumDocsScanned() {
@@ -66,6 +69,10 @@ public class ExecutionStatistics {
     return _numSegmentsMatched;
   }
 
+  public long getFilterDurationMs() {
+    return _filterDurationMs;
+  }
+
   /**
    * Merge another execution statistics into the current one.
    *
@@ -78,6 +85,7 @@ public class ExecutionStatistics {
     _numTotalRawDocs += executionStatisticsToMerge._numTotalRawDocs;
     _numSegmentsProcessed += executionStatisticsToMerge._numSegmentsProcessed;
     _numSegmentsMatched += executionStatisticsToMerge._numSegmentsMatched;
+    _filterDurationMs += executionStatisticsToMerge._filterDurationMs;
   }
 
   @Override
@@ -85,6 +93,7 @@ public class ExecutionStatistics {
     return "Execution Statistics:" + "\n  numDocsScanned: " + _numDocsScanned + "\n  numEntriesScannedInFilter: "
         + _numEntriesScannedInFilter + "\n  numEntriesScannedPostFilter: " + _numEntriesScannedPostFilter
         + "\n  numTotalRawDocs: " + _numTotalRawDocs + "\n  numSegmentsProcessed: " + _numSegmentsProcessed
-        + "\n  numSegmentsMatched: " + _numSegmentsMatched;
+        + "\n  numSegmentsMatched: " + _numSegmentsMatched
+        + "\n  filterDurationMs: " + _filterDurationMs;
   }
 }

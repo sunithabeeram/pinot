@@ -148,6 +148,7 @@ public abstract class QueryScheduler {
       @Nonnull ExecutorService executorService) {
     latestQueryTime.accumulate(System.currentTimeMillis());
     DataTable dataTable;
+    LOGGER.debug("Starting request");
     try {
       dataTable = queryExecutor.processQuery(queryRequest, executorService);
     } catch (Exception e) {

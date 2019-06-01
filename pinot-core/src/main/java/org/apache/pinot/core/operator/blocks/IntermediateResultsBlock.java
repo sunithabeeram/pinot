@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.pinot.common.exception.QueryException;
@@ -59,6 +60,11 @@ public class IntermediateResultsBlock implements Block {
   private long _numSegmentsProcessed;
   private long _numSegmentsMatched;
   private boolean _numGroupsLimitReached;
+  private long _filterDurationMs;
+  // total operator time per segment including filter duration
+  private AtomicLong _opDurationMs = new AtomicLong();
+  // total time merge operator results across segments
+  private AtomicLong _mergeDurationMs = new AtomicLong();
 
   /**
    * Constructor for selection result.
@@ -200,6 +206,14 @@ public class IntermediateResultsBlock implements Block {
 
   public void setNumGroupsLimitReached(boolean numGroupsLimitReached) {
     _numGroupsLimitReached = numGroupsLimitReached;
+  }
+
+  public long getFilterDurationMs() {
+    return _filterDurationMs;
+  }
+
+  public void setFilterDurationMs(long filterDurationMs) {
+    _filterDurationMs = filterDurationMs;
   }
 
   @Nonnull
