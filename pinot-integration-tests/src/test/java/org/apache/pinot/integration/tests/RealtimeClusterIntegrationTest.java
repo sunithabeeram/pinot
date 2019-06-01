@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import kafka.server.KafkaServerStartable;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.common.data.Schema;
 import org.apache.pinot.common.utils.KafkaStarterUtils;
@@ -73,6 +72,8 @@ public class RealtimeClusterIntegrationTest extends BaseClusterIntegrationTestSe
 
     // Create Pinot table
     setUpTable(avroFiles.get(0));
+
+    Thread.sleep(100000000L);
 
     // Wait for all documents loaded
     waitForAllDocsLoaded(600_000L);

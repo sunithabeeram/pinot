@@ -75,7 +75,7 @@ public class AggregationOperator extends BaseOperator<IntermediateResultsBlock> 
     long numEntriesScannedPostFilter = numDocsScanned * _transformOperator.getNumColumnsProjected();
     _executionStatistics =
         new ExecutionStatistics(numDocsScanned, numEntriesScannedInFilter, numEntriesScannedPostFilter,
-            _numTotalRawDocs);
+            _numTotalRawDocs, _transformOperator.getExecutionStatistics().getFilterDurationMs());
 
     // Build intermediate result block based on aggregation result from the executor
     return new IntermediateResultsBlock(_functionContexts, aggregationResult, false);

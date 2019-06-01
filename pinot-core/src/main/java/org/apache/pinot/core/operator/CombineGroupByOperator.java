@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.response.ProcessingException;
@@ -106,6 +107,11 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
       aggregationFunctions[i] = aggregationFunctionContexts[i].getAggregationFunction();
     }
 
+    AtomicLong opTotalThreadDurationMs = new AtomicLong();
+    AtomicLong mergeTotalThreadDurationMs = new AtomicLong();
+    AtomicLong filterTotalThreadDurationMs = new AtomicLong();
+
+    long parallelTimeMs = System.currentTimeMillis();
     Future[] futures = new Future[numOperators];
     for (int i = 0; i < numOperators; i++) {
       int index = i;
@@ -116,8 +122,12 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
           AggregationGroupByResult aggregationGroupByResult;
 
           try {
+            long startTime = System.currentTimeMillis();
             IntermediateResultsBlock intermediateResultsBlock =
                 (IntermediateResultsBlock) _operators.get(index).nextBlock();
+            long opEndTime = System.currentTimeMillis();
+            opTotalThreadDurationMs.addAndGet(opEndTime - startTime);
+            filterTotalThreadDurationMs.addAndGet(_operators.get(index).getExecutionStatistics().getFilterDurationMs());
 
             // Merge processing exceptions.
             List<ProcessingException> processingExceptionsToMerge = intermediateResultsBlock.getProcessingExceptions();
@@ -150,6 +160,7 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
                   return value;
                 });
               }
+              mergeTotalThreadDurationMs.addAndGet(System.currentTimeMillis() - opEndTime);
             }
           } catch (Exception e) {
             LOGGER.error("Exception processing CombineGroupBy for index {}, operator {}", index,
@@ -161,7 +172,6 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         }
       });
     }
-
     try {
       boolean opCompleted = operatorLatch.await(_timeOutMs, TimeUnit.MILLISECONDS);
       if (!opCompleted) {
@@ -171,6 +181,15 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         return new IntermediateResultsBlock(new TimeoutException(errorMessage));
       }
 
+      parallelTimeMs = System.currentTimeMillis() - parallelTimeMs;
+
+      LOGGER.info("opDuration {} mergeDuration {} parallelTimeMs {}", opTotalThreadDurationMs.get(), mergeTotalThreadDurationMs.get(), parallelTimeMs);
+      long totalSerialTime = opTotalThreadDurationMs.get() + mergeTotalThreadDurationMs.get();
+      double estFilterTimeMs = (double)(filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
+      double estPostFilterTimeMs = (double)(opTotalThreadDurationMs.get() - filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
+      double estMergeTimeMs = (double)mergeTotalThreadDurationMs.get()/totalSerialTime * parallelTimeMs;
+
+      long startTime = System.currentTimeMillis();
       // Trim the results map.
       AggregationGroupByTrimmingService aggregationGroupByTrimmingService =
           new AggregationGroupByTrimmingService(aggregationFunctions, (int) _brokerRequest.getGroupBy().getTopN());
@@ -184,6 +203,12 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         mergedBlock.setProcessingExceptions(new ArrayList<>(mergedProcessingExceptions));
       }
 
+      estMergeTimeMs += System.currentTimeMillis() - startTime;
+
+      LOGGER.info("Query latency breakdown: estFilterDurationMs={} estPostFilterDuration={} estMergeDurationMs={}", estFilterTimeMs,
+          estPostFilterTimeMs, estMergeTimeMs);
+
+      long start = System.currentTimeMillis();
       // Set the execution statistics.
       ExecutionStatistics executionStatistics = new ExecutionStatistics();
       for (Operator operator : _operators) {

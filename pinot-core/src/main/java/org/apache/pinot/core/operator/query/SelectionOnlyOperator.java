@@ -92,7 +92,7 @@ public class SelectionOnlyOperator extends BaseOperator<IntermediateResultsBlock
     long numTotalRawDocs = _indexSegment.getSegmentMetadata().getTotalRawDocs();
     _executionStatistics =
         new ExecutionStatistics(numDocsScanned, numEntriesScannedInFilter, numEntriesScannedPostFilter,
-            numTotalRawDocs);
+            numTotalRawDocs, _projectionOperator.getExecutionStatistics().getFilterDurationMs());
 
     return new IntermediateResultsBlock(_dataSchema, _rowEvents);
   }

@@ -99,7 +99,7 @@ public class DictionaryBasedAggregationOperator extends BaseOperator<Intermediat
     // Create execution statistics. Set numDocsScanned to totalRawDocs for backward compatibility.
     _executionStatistics =
         new ExecutionStatistics(_totalRawDocs, 0/* numEntriesScannedInFilter */, 0/* numEntriesScannedPostFilter */,
-            _totalRawDocs);
+            _totalRawDocs, 0);
 
     // Build intermediate result block based on aggregation result from the executor.
     return new IntermediateResultsBlock(_aggregationFunctionContexts, aggregationResults, false);

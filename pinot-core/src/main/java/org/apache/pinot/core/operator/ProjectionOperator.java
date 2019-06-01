@@ -31,7 +31,6 @@ import org.apache.pinot.core.operator.blocks.ProjectionBlock;
 
 public class ProjectionOperator extends BaseOperator<ProjectionBlock> {
   private static final String OPERATOR_NAME = "ProjectionOperator";
-
   private final Map<String, DataSource> _dataSourceMap;
   private final Map<String, Block> _dataBlockMap;
   private final DocIdSetOperator _docIdSetOperator;
