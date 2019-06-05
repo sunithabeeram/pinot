@@ -26,6 +26,9 @@ import org.apache.pinot.core.operator.blocks.DocIdSetBlock;
 import org.apache.pinot.core.operator.docidsets.FilterBlockDocIdSet;
 import org.apache.pinot.core.operator.filter.BaseFilterOperator;
 import org.apache.pinot.core.plan.DocIdSetPlanNode;
+import org.apache.pinot.core.query.scheduler.QueryScheduler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -35,6 +38,8 @@ import org.apache.pinot.core.plan.DocIdSetPlanNode;
  */
 public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
   private static final String OPERATOR_NAME = "DocIdSetOperator";
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(DocIdSetOperator.class);
 
   private static final ThreadLocal<int[]> THREAD_LOCAL_DOC_IDS = new ThreadLocal<int[]>() {
     @Override
@@ -49,8 +54,7 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
   private FilterBlockDocIdSet _filterBlockDocIdSet;
   private BlockDocIdIterator _blockDocIdIterator;
   private int _currentDocId = 0;
-  private long _startTime = Long.MIN_VALUE;
-  private long _endTime = Long.MIN_VALUE;
+  private long _opDuration = 0;
 
   public DocIdSetOperator(@Nonnull BaseFilterOperator filterOperator, int maxSizeOfDocIdSet) {
     Preconditions.checkArgument(maxSizeOfDocIdSet > 0 && maxSizeOfDocIdSet <= DocIdSetPlanNode.MAX_DOC_PER_CALL);
@@ -60,35 +64,36 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
 
   @Override
   protected DocIdSetBlock getNextBlock() {
-    if (_startTime == Long.MIN_VALUE) {
-      _startTime = System.currentTimeMillis();
-    }
+    long startTime = System.currentTimeMillis();
+    try {
 
-    if (_currentDocId == Constants.EOF) {
-      _endTime = System.currentTimeMillis();
-      return null;
-    }
-
-    // Initialize filter block document Id set
-    if (_filterBlockDocIdSet == null) {
-      _filterBlockDocIdSet = (FilterBlockDocIdSet) _filterOperator.nextBlock().getBlockDocIdSet();
-      _blockDocIdIterator = _filterBlockDocIdSet.iterator();
-    }
-
-    int pos = 0;
-    int[] docIds = THREAD_LOCAL_DOC_IDS.get();
-    for (int i = 0; i < _maxSizeOfDocIdSet; i++) {
-      _currentDocId = _blockDocIdIterator.next();
       if (_currentDocId == Constants.EOF) {
-        break;
+        return null;
       }
-      docIds[pos++] = _currentDocId;
-    }
-    if (pos > 0) {
-      return new DocIdSetBlock(docIds, pos);
-    } else {
-      _endTime = System.currentTimeMillis();
-      return null;
+
+      // Initialize filter block document Id set
+      if (_filterBlockDocIdSet == null) {
+        _filterBlockDocIdSet = (FilterBlockDocIdSet) _filterOperator.nextBlock().getBlockDocIdSet();
+        _blockDocIdIterator = _filterBlockDocIdSet.iterator();
+      }
+
+      int pos = 0;
+      int[] docIds = THREAD_LOCAL_DOC_IDS.get();
+      for (int i = 0; i < _maxSizeOfDocIdSet; i++) {
+        _currentDocId = _blockDocIdIterator.next();
+        if (_currentDocId == Constants.EOF) {
+          break;
+        }
+        docIds[pos++] = _currentDocId;
+      }
+      if (pos > 0) {
+        return new DocIdSetBlock(docIds, pos);
+      } else {
+        return null;
+      }
+    } finally {
+      // update the time spent in this operator
+      _opDuration += System.currentTimeMillis() - startTime;
     }
   }
 
@@ -99,13 +104,6 @@ public class DocIdSetOperator extends BaseOperator<DocIdSetBlock> {
 
   @Override
   public ExecutionStatistics getExecutionStatistics() {
-    if (_startTime == Long.MIN_VALUE) {
-      _startTime = System.currentTimeMillis();
-    }
-    if (_endTime == Long.MIN_VALUE) {
-      // this shouldn't happen!
-      _endTime = System.currentTimeMillis();
-    }
-    return new ExecutionStatistics(0L, _filterBlockDocIdSet.getNumEntriesScannedInFilter(), 0L, 0L, _endTime - _startTime);
+    return new ExecutionStatistics(0L, _filterBlockDocIdSet.getNumEntriesScannedInFilter(), 0L, 0L, _opDuration);
   }
 }
