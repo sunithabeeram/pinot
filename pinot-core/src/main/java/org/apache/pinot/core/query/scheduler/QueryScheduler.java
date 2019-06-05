@@ -146,7 +146,7 @@ public abstract class QueryScheduler {
       @Nonnull ExecutorService executorService) {
     latestQueryTime.accumulate(System.currentTimeMillis());
     DataTable dataTable;
-    LOGGER.debug("Starting request");
+    LOGGER.info("Starting request");
     try {
       dataTable = queryExecutor.processQuery(queryRequest, executorService);
     } catch (Exception e) {
@@ -161,6 +161,7 @@ public abstract class QueryScheduler {
     Map<String, String> dataTableMetadata = dataTable.getMetadata();
     dataTableMetadata.put(DataTable.REQUEST_ID_METADATA_KEY, Long.toString(requestId));
 
+    LOGGER.info("Starting to serialize request");
     byte[] responseData = serializeDataTable(queryRequest, dataTable);
 
     // Log the statistics

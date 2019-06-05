@@ -118,6 +118,7 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
     AtomicLong opTotalThreadDurationMs = new AtomicLong();
     AtomicLong mergeTotalThreadDurationMs = new AtomicLong();
     AtomicLong filterTotalThreadDurationMs = new AtomicLong();
+    AtomicLong parallelTotalThreadDurationMs = new AtomicLong();
 
     long parallelTimeMs = System.currentTimeMillis();
     Future[] futures = new Future[numOperators];
@@ -136,7 +137,6 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
             long opEndTime = System.currentTimeMillis();
             opTotalThreadDurationMs.addAndGet(opEndTime - startTime);
             filterTotalThreadDurationMs.addAndGet(_operators.get(index).getExecutionStatistics().getFilterDurationMs());
-
             // Merge processing exceptions.
             List<ProcessingException> processingExceptionsToMerge = intermediateResultsBlock.getProcessingExceptions();
             if (processingExceptionsToMerge != null) {
@@ -167,7 +167,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
                   return value;
                 });
               }
-              mergeTotalThreadDurationMs.addAndGet(System.currentTimeMillis() - opEndTime);
+              long now = System.currentTimeMillis();
+              mergeTotalThreadDurationMs.addAndGet(now - opEndTime);
+              parallelTotalThreadDurationMs.addAndGet(now - startTime);
             }
           } catch (Exception e) {
             LOGGER.error("Exception processing CombineGroupBy for index {}, operator {}", index,
@@ -190,7 +192,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
 
       parallelTimeMs = System.currentTimeMillis() - parallelTimeMs;
 
-      LOGGER.info("opDuration {} mergeDuration {} parallelTimeMs {}", opTotalThreadDurationMs.get(), mergeTotalThreadDurationMs.get(), parallelTimeMs);
+      LOGGER.info("filterDuration {} opDuration {} mergeDuration {} parallelTimeMs {}",
+          filterTotalThreadDurationMs.get(), opTotalThreadDurationMs.get(), mergeTotalThreadDurationMs.get(),
+            parallelTimeMs);
       long totalSerialTime = opTotalThreadDurationMs.get() + mergeTotalThreadDurationMs.get();
       double estFilterTimeMs = (double)(filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
       double estPostFilterTimeMs = (double)(opTotalThreadDurationMs.get() - filterTotalThreadDurationMs.get())/totalSerialTime * parallelTimeMs;
@@ -210,12 +214,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         mergedBlock.setProcessingExceptions(new ArrayList<>(mergedProcessingExceptions));
       }
 
-      estMergeTimeMs += System.currentTimeMillis() - startTime;
+      long serialMergeTimeMs = System.currentTimeMillis() - startTime;
+      estMergeTimeMs += serialMergeTimeMs;
 
-      LOGGER.info("Query latency breakdown: estFilterDurationMs={} estPostFilterDuration={} estMergeDurationMs={}", estFilterTimeMs,
-          estPostFilterTimeMs, estMergeTimeMs);
-
-      long start = System.currentTimeMillis();
       // Set the execution statistics.
       ExecutionStatistics executionStatistics = new ExecutionStatistics();
       for (Operator operator : _operators) {
@@ -236,6 +237,27 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
       if (resultsMap.size() >= _numGroupsLimit) {
         mergedBlock.setNumGroupsLimitReached(true);
       }
+
+
+      double cpuUsagePercent = 0;
+      // first estimate the parallel time
+      // get the average time to estimate the total-cpu capacity
+      long avgThreadTime = parallelTotalThreadDurationMs.get()/executionStatistics.getNumSegmentsMatched();
+      double availableCpuTime = Math.ceil((double)avgThreadTime/1000) * 1000;
+      LOGGER.debug("parallelThreadDurationMs {} matched {} avgThreadTime {} availCpuTime {}",
+          parallelTotalThreadDurationMs.get(), executionStatistics.getNumSegmentsMatched(), avgThreadTime, availableCpuTime);
+      if (parallelTotalThreadDurationMs.get() > 0) {
+        cpuUsagePercent = (avgThreadTime / availableCpuTime) * 100;
+      }
+      if (serialMergeTimeMs > 0) {
+        // now add the serial merge time
+        availableCpuTime = Math.ceil((double) serialMergeTimeMs / 1000) * 1000;
+        LOGGER.debug("serialMergeTime {} availCpuTime {}", serialMergeTimeMs, availableCpuTime);
+        cpuUsagePercent += (serialMergeTimeMs / availableCpuTime) * 100;
+      }
+
+      LOGGER.info("Query latency breakdown: opLatency={} estFilterDurationMs={} estPostFilterDuration={} estMergeDurationMs={} cpuUsagePercent={}",
+          parallelTimeMs, estFilterTimeMs, estPostFilterTimeMs, estMergeTimeMs, cpuUsagePercent);
 
       return mergedBlock;
     } catch (Exception e) {

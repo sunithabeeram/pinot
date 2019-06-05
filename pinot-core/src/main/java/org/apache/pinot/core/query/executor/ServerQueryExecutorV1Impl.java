@@ -185,7 +185,7 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       long totalRawDocs = pruneSegments(tableDataManager, segmentDataManagers, queryRequest);
       segmentPruneTimer.stopAndRecord();
       int numSegmentsMatchedAfterPruning = segmentDataManagers.size();
-      LOGGER.debug("Matched {} segments after pruning", numSegmentsMatchedAfterPruning);
+      LOGGER.info("Matched {} segments after pruning", numSegmentsMatchedAfterPruning);
       if (numSegmentsMatchedAfterPruning == 0) {
         dataTable = DataTableBuilder.buildEmptyDataTable(brokerRequest);
         Map<String, String> metadata = dataTable.getMetadata();
@@ -261,7 +261,7 @@ public class ServerQueryExecutorV1Impl implements QueryExecutor {
       dataTable.getMetadata().put(DataTable.MIN_CONSUMING_FRESHNESS_TIME_MS, Long.toString(minConsumingFreshnessTimeMs));
     }
 
-    LOGGER.debug("Query processing time for request Id - {}: {}", requestId, queryProcessingTime);
+    LOGGER.info("Query processing time for request Id - {}: {}", requestId, queryProcessingTime);
     LOGGER.debug("InstanceResponse for request Id - {}: {}", requestId, dataTable);
     return dataTable;
   }
