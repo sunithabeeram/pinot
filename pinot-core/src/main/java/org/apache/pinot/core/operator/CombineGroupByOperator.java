@@ -234,7 +234,7 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         percentUsed = ((float)totalThreadCpuTime.get() * 100/(parallelTimeMs * AVAILABLE_CORES));
       }
       LOGGER.info("totalThreadCpuTime {} parallelTimeMs {} percentUsed {}", totalThreadCpuTime.get(), parallelTimeMs,
-          (totalThreadCpuTime), percentUsed);
+          percentUsed);
 
       return mergedBlock;
     } catch (Exception e) {

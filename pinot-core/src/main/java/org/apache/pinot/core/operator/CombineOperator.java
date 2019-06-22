@@ -218,7 +218,7 @@ public class CombineOperator extends BaseOperator<IntermediateResultsBlock> {
       percentUsed = ((float)totalThreadCpuTime.get() * 100/(parallelTimeMs * NUM_CORES));
     }
     LOGGER.info("totalThreadCpuTime {} parallelTimeMs {} percentUsed {}", totalThreadCpuTime.get(), parallelTimeMs,
-        (totalThreadCpuTime), percentUsed);
+        percentUsed);
 
     return mergedBlock;
   }
