@@ -137,7 +137,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
             timer.start();
             IntermediateResultsBlock intermediateResultsBlock =
                 (IntermediateResultsBlock) _operators.get(index).nextBlock();
-
+            long opEndTime = System.currentTimeMillis();
+            opTotalThreadDurationMs.addAndGet(opEndTime - startTime);
+            filterTotalThreadDurationMs.addAndGet(_operators.get(index).getExecutionStatistics().getFilterDurationMs());
             // Merge processing exceptions.
             List<ProcessingException> processingExceptionsToMerge = intermediateResultsBlock.getProcessingExceptions();
             if (processingExceptionsToMerge != null) {
@@ -168,6 +170,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
                   return value;
                 });
               }
+              long now = System.currentTimeMillis();
+              mergeTotalThreadDurationMs.addAndGet(now - opEndTime);
+              parallelTotalThreadDurationMs.addAndGet(now - startTime);
             }
           } catch (Exception e) {
             LOGGER.error("Exception processing CombineGroupBy for index {}, operator {}", index,
@@ -205,6 +210,9 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
         mergedBlock.setProcessingExceptions(new ArrayList<>(mergedProcessingExceptions));
       }
 
+      long serialMergeTimeMs = System.currentTimeMillis() - startTime;
+      estMergeTimeMs += serialMergeTimeMs;
+
       // Set the execution statistics.
       ExecutionStatistics executionStatistics = new ExecutionStatistics();
       for (Operator operator : _operators) {
@@ -235,7 +243,6 @@ public class CombineGroupByOperator extends BaseOperator<IntermediateResultsBloc
       }
       LOGGER.info("totalThreadCpuTime {} parallelTimeMs {} percentUsed {}", totalThreadCpuTime.get(), parallelTimeMs,
           percentUsed);
-
       return mergedBlock;
     } catch (Exception e) {
       return new IntermediateResultsBlock(e);
